@@ -1,12 +1,12 @@
 {
-    "name": "@wharfkit/transact-plugin-template",
-    "description": "A template to create plugins for use with @wharfkit/session transact method.",
+    "name": "@wharfkit/transact-plugin-autocorrect",
+    "description": "A plugin to correct common issues users experience while performing transactions.",
     "version": "0.1.0",
-    "homepage": "https://github.com/wharfkit/transact-plugin-template",
+    "homepage": "https://github.com/wharfkit/transact-plugin-autocorrect",
     "license": "BSD-3-Clause",
-    "main": "lib/transact-plugin-template.js",
-    "module": "lib/transact-plugin-template.m.js",
-    "types": "lib/transact-plugin-template.d.ts",
+    "main": "lib/transact-plugin-autocorrect.js",
+    "module": "lib/transact-plugin-autocorrect.m.js",
+    "types": "lib/transact-plugin-autocorrect.d.ts",
     "sideEffects": false,
     "files": [
         "lib/*",

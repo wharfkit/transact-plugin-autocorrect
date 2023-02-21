@@ -1,13 +1,25 @@
-# @wharfkit/transact-plugin-template
+# @wharfkit/transact-plugin-autocorrect
 
-A template to create a `transactPlugin` for use during a `transact` call within the `@wharfkit/session` library.
+A plugin to correct common issues users experience while performing transactions.
 
 ## Usage
 
--   [Use this as a template.](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)
--   Write your plugin's logic.
--   Publish it on Github or npmjs.com
--   Include it in your project and use it.
+Install plugin.
+
+```
+yarn add @wharfkit/transact-plugin-autocorrect
+```
+
+Include when configuring the Session Kit or manually setting up a Session.
+
+```ts
+import {TransactPluginAutoCorrect} from '@wharfkit/transact-plugin-autocorrect'
+
+const kit = new SessionKit({
+    // ... your other options
+    transactPlugins: [new TransactPluginAutoCorrect()],
+})
+```
 
 ## Developing
 

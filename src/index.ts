@@ -1,6 +1,6 @@
 import {AbstractTransactPlugin, TransactContext, TransactHookTypes} from '@wharfkit/session'
 
-export class TransactPluginTemplate extends AbstractTransactPlugin {
+export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
     register(context: TransactContext): void {
         context.addHook(TransactHookTypes.beforeSign, async (request, context) => {
             // eslint-disable-next-line no-console

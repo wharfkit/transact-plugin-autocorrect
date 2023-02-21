@@ -1,5 +1,5 @@
 import {mockFetch} from '$test/utils/mock-fetch'
-import {TransactPluginTemplate} from '../../src/index'
+import {TransactPluginAutoCorrect} from '../../src/index'
 
 import {PrivateKey, Session, SessionArgs, SessionOptions} from '@wharfkit/session'
 import {WalletPluginPrivateKey} from '@wharfkit/wallet-plugin-privatekey'
@@ -19,10 +19,11 @@ const mockSessionArgs: SessionArgs = {
 
 const mockSessionOptions: SessionOptions = {
     fetch: mockFetch,
-    transactPlugins: [new TransactPluginTemplate()],
+    transactPlugins: [new TransactPluginAutoCorrect()],
 }
 
-suite('example', function () {
+suite('autocorrect', function () {
+    suite('calls v1/chain/compute_transaction', function () {})
     test('plugin usage', async function () {
         const session = new Session(mockSessionArgs, mockSessionOptions)
         const action = {
