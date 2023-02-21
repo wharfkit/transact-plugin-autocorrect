@@ -212,10 +212,21 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@greymass/eosio@^0.6.0", "@greymass/eosio@^0.6.4":
+"@greymass/eosio@^0.6.0":
   version "0.6.8"
   resolved "https://registry.yarnpkg.com/@greymass/eosio/-/eosio-0.6.8.tgz#6f24071eaec6e0df33e3c35ca0704a53146c00d2"
   integrity sha512-niWrUjCzQR9bJsl5IhrJIoi9fWCL4gEAOOaBdTmJuUFpOISQYe4zir5TjNlvlfpCC9ajy7o0pUNpDZuVrNaijQ==
+  dependencies:
+    bn.js "^4.11.9"
+    brorand "^1.1.0"
+    elliptic "^6.5.4"
+    hash.js "^1.0.0"
+    tslib "^2.0.3"
+
+"@greymass/eosio@^0.6.8":
+  version "0.6.9"
+  resolved "https://registry.yarnpkg.com/@greymass/eosio/-/eosio-0.6.9.tgz#e5475dfb6f1507da6ec2f9f0065e19684e8d4b70"
+  integrity sha512-Xd6X3sesStFQiw3+6+8tD1IauW3WX25GQnHa/zhUqIE1cB23bjzLqn89JDTcyQYKJ4R24L1rERqko/u6p7RizA==
   dependencies:
     bn.js "^4.11.9"
     brorand "^1.1.0"
@@ -558,14 +569,21 @@
     "@typescript-eslint/types" "5.47.1"
     eslint-visitor-keys "^3.3.0"
 
-"@wharfkit/session@^0.3.0-ui-5":
-  version "0.3.0-ui-5"
-  resolved "https://registry.yarnpkg.com/@wharfkit/session/-/session-0.3.0-ui-5.tgz#2a05b0fa7a31fdbfbc2e348ab2510bff18ae7698"
-  integrity sha512-QyH6VYvT07Vq4A/GY6y33sE8bVH3mgy24zENR2HCbP47sGQM12WznFylWIjQ3TOjF4aOL8yZrFUr62S7YMEj5g==
+"@wharfkit/session@^0.3.0-ui-12":
+  version "0.3.0-ui-12"
+  resolved "https://registry.yarnpkg.com/@wharfkit/session/-/session-0.3.0-ui-12.tgz#1d2b56604cd128407e74b51d42e7be8e60c3f9b4"
+  integrity sha512-ibAim5X05WaL1Ms4Qm3gLNwNyPJhelbebqk5IWbP+YWxodciiUliUPDx2UKijNh7T2DqQCerstkJrgq8DoNmmQ==
   dependencies:
-    "@greymass/eosio" "^0.6.4"
+    "@greymass/eosio" "^0.6.8"
     eosio-signing-request "^2.5.2"
     pako "^2.0.4"
+    tslib "^2.1.0"
+
+"@wharfkit/wallet-plugin-privatekey@^0.3.0-ui-11":
+  version "0.3.0-ui-11"
+  resolved "https://registry.yarnpkg.com/@wharfkit/wallet-plugin-privatekey/-/wallet-plugin-privatekey-0.3.0-ui-11.tgz#1e66289f54b25139e7f752e163825e12ec699300"
+  integrity sha512-uvt7Saq/Xz/9FDHsSmG7sHzoMaV5QQ60U9KUXi7Wf4Xu2rV//VdKcE/4MrEghNkLdWSM62/gp2FhjJXmuB2dLA==
+  dependencies:
     tslib "^2.1.0"
 
 acorn-jsx@^5.3.2:
