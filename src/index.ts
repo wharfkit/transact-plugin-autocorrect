@@ -3,11 +3,9 @@ import {
     Action,
     Asset,
     Cancelable,
-    Canceled,
     Int64,
     Name,
     PromptResponse,
-    ResolvedSigningRequest,
     SigningRequest,
     Struct,
     TransactContext,
@@ -16,7 +14,7 @@ import {
     Transaction,
     UInt32,
 } from '@wharfkit/session'
-import {PowerUpState, RAMState, REXState, Resources, SampleUsage} from '@greymass/eosio-resources'
+import {Resources, SampleUsage} from '@greymass/eosio-resources'
 import {getException} from './exception'
 
 enum ChainFeatures {
