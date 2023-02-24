@@ -3,6 +3,7 @@ import {
     Action,
     Asset,
     Cancelable,
+    Canceled,
     Int64,
     Name,
     PromptResponse,
@@ -195,8 +196,8 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
             }, 3000)
 
             // Return the promise from the prompt
-            return prompt.then(
-                async () => {
+            return prompt
+                .then(async () => {
                     // TODO: Implement maximum fee to ensure potential bugs don't cause massive fees
                     // Create the buyram action
                     const newAction = Action.from({
@@ -221,12 +222,18 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     )
                     clearTimeout(timer) // TODO: Remove this, it's just here for testing
                     return await this.run(newRequest, context)
-                },
-                async () => {
+                })
+                .catch((e) => {
+                    // Throw if what we caught was a cancelation
+                    if (e instanceof Canceled) {
+                        throw e
+                    }
+                    // Otherwise if it wasn't a cancel, it was a reject, and continue without modification
+                    return new Promise((r) => r({request})) as Promise<TransactHookResponse>
+                })
+                .finally(() => {
                     clearTimeout(timer) // TODO: Remove this, it's just here for testing
-                    return new Promise((r) => r({request}))
-                }
-            )
+                })
         }
         // If not configured for this chain just return the request inside a promise
         return new Promise((r) => r({request}))
