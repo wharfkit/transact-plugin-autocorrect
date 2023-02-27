@@ -10,12 +10,23 @@ Install plugin.
 yarn add @wharfkit/transact-plugin-autocorrect
 ```
 
-Include when configuring the Session Kit or manually setting up a Session.
+Include when configuring the Session Kit:
 
 ```ts
 import {TransactPluginAutoCorrect} from '@wharfkit/transact-plugin-autocorrect'
 
 const kit = new SessionKit({
+    // ... your other options
+    transactPlugins: [new TransactPluginAutoCorrect()],
+})
+```
+
+Or when you are manually configuring a Session:
+
+```ts
+import {TransactPluginAutoCorrect} from '@wharfkit/transact-plugin-autocorrect'
+
+const session = new Session({
     // ... your other options
     transactPlugins: [new TransactPluginAutoCorrect()],
 })

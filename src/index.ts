@@ -51,7 +51,7 @@ const chains: Record<string, ChainConfig> = {
     // Jungle 4
     '73e4385a2708e6d7048834fbc1079f2fabb17b3c125b146af438971e90716c4d': {
         features: [ChainFeatures.BuyRAM, ChainFeatures.PowerUp],
-        sampleAccount: 'eosamsterdam',
+        sampleAccount: 'eosmechanics',
         symbol: Asset.Symbol.from('4,EOS'),
     },
 }
@@ -124,7 +124,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     const {net_usage} = exception.stack[0].data
                     const needed = net_usage * multiplier
                     if (config.features.includes(ChainFeatures.PowerUp)) {
-                        return this.powerup(request, context, resolved, resources, needed)
+                        return this.powerup(request, context, resolved, resources, 0, needed)
                     }
                     break
                 }
@@ -132,7 +132,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     const {billed, billable} = exception.stack[0].data
                     const needed = (billed - billable) * multiplier
                     if (config.features.includes(ChainFeatures.PowerUp)) {
-                        return this.powerup(request, context, resolved, resources, needed)
+                        return this.powerup(request, context, resolved, resources, needed, 0)
                     }
                     break
                 }
@@ -243,7 +243,8 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         context: TransactContext,
         resolved,
         resources,
-        needed
+        cpu,
+        net
     ): Promise<TransactHookResponse> {
         const config = chains[String(context.chain.id)]
         if (context.ui) {
@@ -252,12 +253,20 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                 this.sample = await resources.getSampledUsage()
             }
 
-            const price = powerup.cpu.price_per_ms(this.sample, needed)
+            // Set a floor to prevent hitting minimums
+            if (cpu < 1000) {
+                cpu = 1000
+            }
+
+            // Determine price of resources
+            const price =
+                Number(powerup.cpu.price_per(this.sample, cpu)) +
+                Number(powerup.net.price_per(this.sample, net))
 
             // Initiate a new cancelable prompt to inform the user of the fee required
             const prompt: Cancelable<PromptResponse> = context.ui.prompt({
                 title: 'Fee Required',
-                body: 'Resources are required to complete this transaction. Accept fee?',
+                body: 'Resources for PowerUp are required to complete this transaction. Accept fee?',
                 elements: [
                     {
                         type: 'asset',
@@ -272,12 +281,6 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                 ],
             })
 
-            // Example of how to cancel a prompt using a timeout
-            // TODO: Remove this, it's just here for testing
-            const timer = setTimeout(() => {
-                prompt.cancel('canceled automatically through timeout')
-            }, 30000)
-
             // Return the promise from the prompt
             return prompt.then(
                 async () => {
@@ -291,11 +294,12 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                             payer: resolved.signer.actor,
                             receiver: resolved.signer.actor,
                             days: 1,
-                            net_frac: powerup.net.frac(this.sample, needed),
-                            cpu_frac: powerup.cpu.frac(this.sample, needed),
+                            net_frac: powerup.net.frac(this.sample, net),
+                            cpu_frac: powerup.cpu.frac(this.sample, cpu),
                             max_payment: Asset.from(price, config.symbol),
                         }),
                     })
+
                     // Create a new request based on this full transaction
                     const newRequest = await SigningRequest.create(
                         {
@@ -306,11 +310,9 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                         },
                         context.esrOptions
                     )
-                    clearTimeout(timer) // TODO: Remove this, it's just here for testing
                     return await this.run(newRequest, context)
                 },
                 async () => {
-                    clearTimeout(timer) // TODO: Remove this, it's just here for testing
                     return new Promise((r) => r({request}))
                 }
             )
