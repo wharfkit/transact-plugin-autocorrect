@@ -4,19 +4,18 @@ import {
     Asset,
     Cancelable,
     Canceled,
-    Int64,
-    Name,
     PromptResponse,
     SigningRequest,
-    Struct,
     TransactContext,
     TransactHookResponse,
     TransactHookTypes,
     Transaction,
-    UInt32,
 } from '@wharfkit/session'
 import {Resources, SampleUsage} from '@greymass/eosio-resources'
+
 import {getException} from './exception'
+import {Buyrambytes, Powerup} from './types'
+import defaultTranslations from './translations.json'
 
 enum ChainFeatures {
     /** eosio.buyram / eosio.buyrambytes https://github.com/EOSIO/eosio.contracts/blob/master/contracts/eosio.system/src/delegate_bandwidth.cpp#L43 */
@@ -56,32 +55,12 @@ const chains: Record<string, ChainConfig> = {
     },
 }
 
+/** Multiply all resource purchases to provide extra based on inaccurate estimates */
 const multiplier = 1.5
 
-// const resources_eos = new Resources({
-//     api: new APIClient({
-//         provider: new MockProvider(joinPath(__dirname, 'data'), 'https://eos.greymass.com'),
-//     }),
-// })
-
-@Struct.type('powerup')
-export class Powerup extends Struct {
-    @Struct.field(Name) payer!: Name
-    @Struct.field(Name) receiver!: Name
-    @Struct.field(UInt32) days!: UInt32
-    @Struct.field(Int64) net_frac!: Int64
-    @Struct.field(Int64) cpu_frac!: Int64
-    @Struct.field(Asset) max_payment!: Asset
-}
-
-@Struct.type('buyrambytes')
-export class Buyrambytes extends Struct {
-    @Struct.field(Name) payer!: Name
-    @Struct.field(Name) receiver!: Name
-    @Struct.field(UInt32) bytes!: UInt32
-}
-
 export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
+    public id = 'transact-plugin-autocorrect'
+    public translations = defaultTranslations
     public sample: SampleUsage | null = null
     register(context: TransactContext): void {
         if (!context.ui) {
@@ -102,6 +81,9 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
             return {request}
         }
 
+        // Retrieve translation helper from the UI, passing the app ID
+        const t = context.ui.getTranslate(this.id)
+
         // Set instance of resource library
         const resources = new Resources({
             api: context.client,
@@ -109,11 +91,11 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         })
 
         // Resolve any placeholders and complete the transaction for compute.
-        context.ui.status('Resolving transaction')
+        context.ui.status(t('resolving', {default: 'Resolving transaction'}))
         const resolved = await context.resolve(request)
 
         // Call compute_transaction against the resolved transaction to detect any issues.
-        context.ui.status('Checking transaction')
+        context.ui.status(t('checking', {default: 'Checking transaction'}))
         const response = await context.client.v1.chain.compute_transaction(resolved.transaction)
 
         // Extract any exceptions from the response
@@ -164,6 +146,9 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
     ): Promise<TransactHookResponse> {
         const config = chains[String(context.chain.id)]
         if (context.ui) {
+            // Retrieve translation helper from the UI, passing the app ID
+            const t = context.ui.getTranslate(this.id)
+
             // Get state of the blockchain and determine RAM price
             const ram = await resources.v1.ram.get_state()
             if (!this.sample) {
@@ -173,13 +158,20 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
 
             // Initiate a new cancelable prompt to inform the user of the fee required
             const prompt: Cancelable<PromptResponse> = context.ui.prompt({
-                title: 'Fee Required',
-                body: 'Resources are required to complete this transaction. Accept fee?',
+                title: t('fee.title', {default: 'Accept Transaction Fee?'}),
+                body: t('fee.body', {
+                    default:
+                        'Additional resources ({{resource}}) are required for your account to perform this transaction. Would you like to automatically purchase these resources from the network and proceed?',
+                    resource: 'RAM',
+                }),
                 elements: [
                     {
                         type: 'asset',
                         data: {
-                            label: 'Fee required',
+                            label: t('fee.cost', {
+                                default: 'Cost of {{resource}}',
+                                resource: 'RAM',
+                            }),
                             value: price,
                         },
                     },
@@ -188,12 +180,6 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     },
                 ],
             })
-
-            // Example of how to cancel a prompt using a timeout
-            // TODO: Remove this, it's just here for testing
-            const timer = setTimeout(() => {
-                prompt.cancel('canceled automatically through timeout')
-            }, 3000)
 
             // Return the promise from the prompt
             return prompt
@@ -220,7 +206,6 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                         },
                         context.esrOptions
                     )
-                    clearTimeout(timer) // TODO: Remove this, it's just here for testing
                     return await this.run(newRequest, context)
                 })
                 .catch((e) => {
@@ -230,9 +215,6 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     }
                     // Otherwise if it wasn't a cancel, it was a reject, and continue without modification
                     return new Promise((r) => r({request})) as Promise<TransactHookResponse>
-                })
-                .finally(() => {
-                    clearTimeout(timer) // TODO: Remove this, it's just here for testing
                 })
         }
         // If not configured for this chain just return the request inside a promise
@@ -248,6 +230,9 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
     ): Promise<TransactHookResponse> {
         const config = chains[String(context.chain.id)]
         if (context.ui) {
+            // Retrieve translation helper from the UI, passing the app ID
+            const t = context.ui.getTranslate(this.id)
+
             const powerup = await resources.v1.powerup.get_state()
             if (!this.sample) {
                 this.sample = await resources.getSampledUsage()
@@ -263,15 +248,24 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                 Number(powerup.cpu.price_per(this.sample, cpu)) +
                 Number(powerup.net.price_per(this.sample, net))
 
+            const resourceLabel = cpu > 0 ? 'CPU' : 'NET'
+
             // Initiate a new cancelable prompt to inform the user of the fee required
             const prompt: Cancelable<PromptResponse> = context.ui.prompt({
-                title: 'Fee Required',
-                body: 'Resources for PowerUp are required to complete this transaction. Accept fee?',
+                title: t('fee.title', {default: 'Accept Transaction Fee?'}),
+                body: t('fee.body', {
+                    default:
+                        'Additional resources ({{resource}}) are required for your account to perform this transaction. Would you like to automatically purchase these resources from the network and proceed?',
+                    resource: resourceLabel,
+                }),
                 elements: [
                     {
                         type: 'asset',
                         data: {
-                            label: 'Fee required',
+                            label: t('fee.cost', {
+                                default: 'Cost of {{resource}}',
+                                resource: resourceLabel,
+                            }),
                             value: price,
                         },
                     },
