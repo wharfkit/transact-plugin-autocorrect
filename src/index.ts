@@ -4,6 +4,7 @@ import {
     Asset,
     Cancelable,
     Canceled,
+    prependAction,
     PromptResponse,
     SigningRequest,
     TransactContext,
@@ -197,15 +198,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                         }),
                     })
                     // Create a new request based on this full transaction
-                    const newRequest = await SigningRequest.create(
-                        {
-                            transaction: Transaction.from({
-                                ...resolved.transaction,
-                                actions: [newAction, ...resolved.transaction.actions],
-                            }),
-                        },
-                        context.esrOptions
-                    )
+                    const newRequest = prependAction(resolved.request.clone(), newAction)
                     return await this.run(newRequest, context)
                 })
                 .catch((e) => {
@@ -295,15 +288,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     })
 
                     // Create a new request based on this full transaction
-                    const newRequest = await SigningRequest.create(
-                        {
-                            transaction: Transaction.from({
-                                ...resolved.transaction,
-                                actions: [newAction, ...resolved.transaction.actions],
-                            }),
-                        },
-                        context.esrOptions
-                    )
+                    const newRequest = prependAction(resolved.request.clone(), newAction)
                     return await this.run(newRequest, context)
                 },
                 async () => {
