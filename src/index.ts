@@ -198,7 +198,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                         }),
                     })
                     // Create a new request based on this full transaction
-                    const newRequest = prependAction(resolved.request.clone(), newAction)
+                    const newRequest = prependAction(resolved.request, newAction)
                     return await this.run(newRequest, context)
                 })
                 .catch((e) => {
@@ -288,7 +288,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     })
 
                     // Create a new request based on this full transaction
-                    const newRequest = prependAction(resolved.request.clone(), newAction)
+                    const newRequest = prependAction(resolved.request, newAction)
                     return await this.run(newRequest, context)
                 },
                 async () => {
