@@ -2,15 +2,12 @@ import {
     AbstractTransactPlugin,
     Action,
     Asset,
-    Cancelable,
-    Canceled,
     prependAction,
-    PromptResponse,
+    ResolvedSigningRequest,
     SigningRequest,
     TransactContext,
     TransactHookResponse,
     TransactHookTypes,
-    Transaction,
 } from '@wharfkit/session'
 import {Resources, SampleUsage} from '@greymass/eosio-resources'
 
@@ -63,6 +60,10 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
     public id = 'transact-plugin-autocorrect'
     public translations = defaultTranslations
     public sample: SampleUsage | null = null
+    public price: Asset | null = null
+    public resources: string[] = []
+    public iterations = 0
+
     register(context: TransactContext): void {
         if (!context.ui) {
             throw new Error('The TransactPluginAutoCorrect plugin requires a UI to be present.')
@@ -75,15 +76,98 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
             ): Promise<TransactHookResponse> => this.run(request, context)
         )
     }
+
     async run(request: SigningRequest, context: TransactContext): Promise<TransactHookResponse> {
-        // If the chain is not configured to correct issues or no UI is present, abort.
-        const config = chains[String(context.chain.id)]
-        if (!config || !context.ui) {
+        // Abort if no UI is present
+        if (!context.ui) {
             return {request}
         }
 
+        // Reset internal state between transactions
+        this.price = null
+        this.resources = []
+
         // Retrieve translation helper from the UI, passing the app ID
         const t = context.ui.getTranslate(this.id)
+
+        // Notifify the UI that we are checking the transaction
+        const checkingPromise = context.ui
+            .prompt({
+                title: t('checking', {default: 'Checking transaction'}),
+                body: '',
+                elements: [],
+            })
+            .catch((error) => {
+                // Throw if what we caught was a cancelation
+                if (error) {
+                    throw error
+                }
+                // Otherwise return the original if no error occurred but this was rejected
+                return {request}
+            })
+
+        // Attempt to correct this transaction
+        const correctedPromise = this.correct(request, context)
+
+        const modified = await Promise.race([checkingPromise, correctedPromise])
+
+        // If the request wasn't modified and no price exists, just return
+        if (modified === request && !this.price) {
+            return {request}
+        }
+
+        // Create unique set of resources that will be purchased
+        const resources = Array.from(new Set(this.resources)).join('/')
+
+        // Initiate a new cancelable prompt to inform the user of the fee required
+        return context.ui
+            .prompt({
+                title: t('fee.title', {default: 'Accept Transaction Fee?'}),
+                body: t('fee.body', {
+                    default:
+                        'Additional resources ({{resource}}) are required for your account to perform this transaction. Would you like to automatically purchase these resources from the network and proceed?',
+                    resource: resources,
+                }),
+                elements: [
+                    {
+                        type: 'asset',
+                        data: {
+                            label: t('fee.cost', {
+                                default: 'Cost of {{resource}}',
+                                resource: resources,
+                            }),
+                            value: this.price,
+                        },
+                    },
+                    {
+                        type: 'accept',
+                    },
+                ],
+            })
+            .then(() => ({request: modified as SigningRequest}))
+            .catch((error) => {
+                // Throw if what we caught was a cancelation
+                if (error) {
+                    throw error
+                }
+                // Otherwise return the original if no error occurred but this was rejected
+                return {request}
+            })
+    }
+
+    async correct(request: SigningRequest, context: TransactContext): Promise<SigningRequest> {
+        // TODO: Remove this once we are confident it won't create infinite loops against bad APIs
+        // Keep track of how many interations have been done
+        this.iterations++
+        if (this.iterations > 3) {
+            throw new Error('Too many iterations. Please report this bug if you see it.')
+        }
+
+        // If the chain is not configured to correct issues or no UI is present, abort.
+        const config = chains[String(context.chain.id)]
+        if (!config || !context.ui) {
+            return request
+        }
 
         // Set instance of resource library
         const resources = new Resources({
@@ -92,11 +176,9 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         })
 
         // Resolve any placeholders and complete the transaction for compute.
-        context.ui.status(t('resolving', {default: 'Resolving transaction'}))
         const resolved = await context.resolve(request)
 
         // Call compute_transaction against the resolved transaction to detect any issues.
-        context.ui.status(t('checking', {default: 'Checking transaction'}))
         const response = await context.client.v1.chain.compute_transaction(resolved.transaction)
 
         // Extract any exceptions from the response
@@ -107,7 +189,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     const {net_usage} = exception.stack[0].data
                     const needed = net_usage * multiplier
                     if (config.features.includes(ChainFeatures.PowerUp)) {
-                        return this.powerup(request, context, resolved, resources, 0, needed)
+                        return this.powerup(context, resolved, resources, 0, needed)
                     }
                     break
                 }
@@ -115,7 +197,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     const {billed, billable} = exception.stack[0].data
                     const needed = (billed - billable) * multiplier
                     if (config.features.includes(ChainFeatures.PowerUp)) {
-                        return this.powerup(request, context, resolved, resources, needed, 0)
+                        return this.powerup(context, resolved, resources, needed, 0)
                     }
                     break
                 }
@@ -123,7 +205,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     const {available, needs} = exception.stack[0].data
                     const needed = (needs - available) * multiplier
                     if (config.features.includes(ChainFeatures.BuyRAM)) {
-                        return this.buyram(request, context, resolved, resources, needed)
+                        return this.buyram(context, resolved, resources, needed)
                     }
                     break
                 }
@@ -134,169 +216,127 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
             }
         }
 
-        return {
-            request,
-        }
+        // Return the request
+        return request
     }
     async buyram(
-        request: SigningRequest,
         context: TransactContext,
-        resolved,
-        resources,
-        needed
-    ): Promise<TransactHookResponse> {
+        resolved: ResolvedSigningRequest,
+        resources: Resources,
+        needed: number
+    ): Promise<SigningRequest> {
+        // Get state of the blockchain and determine RAM price
         const config = chains[String(context.chain.id)]
-        if (context.ui) {
-            // Retrieve translation helper from the UI, passing the app ID
-            const t = context.ui.getTranslate(this.id)
-
-            // Get state of the blockchain and determine RAM price
-            const ram = await resources.v1.ram.get_state()
-            if (!this.sample) {
-                this.sample = await resources.getSampledUsage()
-            }
-            const price = Asset.fromUnits(ram.price_per(needed) * 10000, config.symbol)
-
-            // Initiate a new cancelable prompt to inform the user of the fee required
-            const prompt: Cancelable<PromptResponse> = context.ui.prompt({
-                title: t('fee.title', {default: 'Accept Transaction Fee?'}),
-                body: t('fee.body', {
-                    default:
-                        'Additional resources ({{resource}}) are required for your account to perform this transaction. Would you like to automatically purchase these resources from the network and proceed?',
-                    resource: 'RAM',
-                }),
-                elements: [
-                    {
-                        type: 'asset',
-                        data: {
-                            label: t('fee.cost', {
-                                default: 'Cost of {{resource}}',
-                                resource: 'RAM',
-                            }),
-                            value: price,
-                        },
-                    },
-                    {
-                        type: 'accept',
-                    },
-                ],
-            })
-
-            // Return the promise from the prompt
-            return prompt
-                .then(async () => {
-                    // TODO: Implement maximum fee to ensure potential bugs don't cause massive fees
-                    // Create the buyram action
-                    const newAction = Action.from({
-                        account: 'eosio',
-                        name: 'buyrambytes',
-                        authorization: [resolved.signer],
-                        data: Buyrambytes.from({
-                            payer: resolved.signer.actor,
-                            receiver: resolved.signer.actor,
-                            bytes: needed,
-                        }),
-                    })
-                    // Create a new request based on this full transaction
-                    const newRequest = prependAction(resolved.request, newAction)
-                    return await this.run(newRequest, context)
-                })
-                .catch((e) => {
-                    // Throw if what we caught was a cancelation
-                    if (e instanceof Canceled) {
-                        throw e
-                    }
-                    // Otherwise if it wasn't a cancel, it was a reject, and continue without modification
-                    return new Promise((r) => r({request})) as Promise<TransactHookResponse>
-                })
+        const ram = await resources.v1.ram.get_state()
+        if (!this.sample) {
+            this.sample = await resources.getSampledUsage()
         }
-        // If not configured for this chain just return the request inside a promise
-        return new Promise((r) => r({request}))
+
+        // Determine price of resources
+        const price = Asset.fromUnits(ram.price_per(needed) * 10000, config.symbol)
+
+        // Keep a running total of the price
+        if (this.price) {
+            this.price.units.add(price.units)
+        } else {
+            this.price = price
+        }
+
+        // And which resources are being paid for by this fee
+        this.resources.push('RAM')
+
+        // TODO: Implement maximum RAM fee to ensure potential bugs don't cause massive fees
+        // How to determine a normal price per network?
+        // const maxFee = 1
+        // if (this.price.value > maxFee) {
+        //     throw new Error('Fee is too high')
+        // }
+
+        // Create a new buyrambytes action to append
+        const newAction = Action.from({
+            account: 'eosio',
+            name: 'buyrambytes',
+            authorization: [resolved.signer],
+            data: Buyrambytes.from({
+                payer: resolved.signer.actor,
+                receiver: resolved.signer.actor,
+                bytes: needed,
+            }),
+        })
+
+        // Create a new request based on this full transaction
+        const newRequest = prependAction(resolved.request, newAction)
+
+        // Attempt to correct the new request
+        return this.correct(newRequest, context)
     }
+
     async powerup(
-        request: SigningRequest,
         context: TransactContext,
-        resolved,
-        resources,
-        cpu,
-        net
-    ): Promise<TransactHookResponse> {
+        resolved: ResolvedSigningRequest,
+        resources: Resources,
+        cpu: number,
+        net: number
+    ): Promise<SigningRequest> {
+        // Get state of the blockchain and determine powerup price
         const config = chains[String(context.chain.id)]
-        if (context.ui) {
-            // Retrieve translation helper from the UI, passing the app ID
-            const t = context.ui.getTranslate(this.id)
-
-            const powerup = await resources.v1.powerup.get_state()
-            if (!this.sample) {
-                this.sample = await resources.getSampledUsage()
-            }
-
-            // Set a floor to prevent hitting minimums
-            if (cpu < 1000) {
-                cpu = 1000
-            }
-
-            // Determine price of resources
-            const price =
-                Number(powerup.cpu.price_per(this.sample, cpu)) +
-                Number(powerup.net.price_per(this.sample, net))
-
-            const resourceLabel = cpu > 0 ? 'CPU' : 'NET'
-
-            // Initiate a new cancelable prompt to inform the user of the fee required
-            const prompt: Cancelable<PromptResponse> = context.ui.prompt({
-                title: t('fee.title', {default: 'Accept Transaction Fee?'}),
-                body: t('fee.body', {
-                    default:
-                        'Additional resources ({{resource}}) are required for your account to perform this transaction. Would you like to automatically purchase these resources from the network and proceed?',
-                    resource: resourceLabel,
-                }),
-                elements: [
-                    {
-                        type: 'asset',
-                        data: {
-                            label: t('fee.cost', {
-                                default: 'Cost of {{resource}}',
-                                resource: resourceLabel,
-                            }),
-                            value: price,
-                        },
-                    },
-                    {
-                        type: 'accept',
-                    },
-                ],
-            })
-
-            // Return the promise from the prompt
-            return prompt.then(
-                async () => {
-                    // TODO: Implement maximum fee to ensure potential bugs don't cause massive fees
-                    // Create a new powerup action to append
-                    const newAction = Action.from({
-                        account: 'eosio',
-                        name: 'powerup',
-                        authorization: [resolved.signer],
-                        data: Powerup.from({
-                            payer: resolved.signer.actor,
-                            receiver: resolved.signer.actor,
-                            days: 1,
-                            net_frac: powerup.net.frac(this.sample, net),
-                            cpu_frac: powerup.cpu.frac(this.sample, cpu),
-                            max_payment: Asset.from(price, config.symbol),
-                        }),
-                    })
-
-                    // Create a new request based on this full transaction
-                    const newRequest = prependAction(resolved.request, newAction)
-                    return await this.run(newRequest, context)
-                },
-                async () => {
-                    return new Promise((r) => r({request}))
-                }
-            )
+        const powerup = await resources.v1.powerup.get_state()
+        if (!this.sample) {
+            this.sample = await resources.getSampledUsage()
         }
-        // If not configured for this chain just return the request inside a promise
-        return new Promise((r) => r({request}))
+
+        // If powering up, always set a minimum to avoid API speed variance
+        if (cpu < 5000) {
+            cpu = 5000
+        }
+
+        if (net < 10000) {
+            net = 10000
+        }
+
+        // Determine price of resources
+        const price = Asset.from(
+            Number(powerup.cpu.price_per(this.sample, cpu)) +
+                Number(powerup.net.price_per(this.sample, net)),
+            config.symbol
+        )
+
+        // Keep a running total of the price
+        if (this.price) {
+            this.price.units.add(price.units)
+        } else {
+            this.price = price
+        }
+
+        // And which resources are being paid for by this fee
+        this.resources.push('CPU', 'NET')
+
+        // TODO: Implement maximum RAM fee to ensure potential bugs don't cause massive fees
+        // How to determine a normal price per network?
+        // const maxFee = 1
+        // if (this.price.value > maxFee) {
+        //     throw new Error('Fee is too high')
+        // }
+
+        // Create a new powerup action to append
+        const newAction = Action.from({
+            account: 'eosio',
+            name: 'powerup',
+            authorization: [resolved.signer],
+            data: Powerup.from({
+                payer: resolved.signer.actor,
+                receiver: resolved.signer.actor,
+                days: 1,
+                net_frac: powerup.net.frac(this.sample, net),
+                cpu_frac: powerup.cpu.frac(this.sample, cpu),
+                max_payment: price,
+            }),
+        })
+
+        // Create a new request based on this full transaction
+        const newRequest = prependAction(resolved.request, newAction)
+
+        // Attempt to correct the new request
+        return this.correct(newRequest, context)
     }
 }
