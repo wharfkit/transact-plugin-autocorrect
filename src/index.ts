@@ -86,6 +86,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         // Reset internal state between transactions
         this.price = null
         this.resources = []
+        this.iterations = 0
 
         // Retrieve translation helper from the UI, passing the app ID
         const t = context.ui.getTranslate(this.id)
