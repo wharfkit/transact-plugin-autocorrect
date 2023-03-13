@@ -1,0 +1,9 @@
+{
+    "checking": "Checking transaction",
+    "fee": {
+        "title": "Accept Transaction Fee?",
+        "body": "Additional resources ({{resource}}) are required for your account to perform this transaction. Would you like to automatically purchase these resources from the network and proceed?",
+        "cost": "Cost of {{resource}}"
+    },
+    "resolving": "Resolving transaction"
+}
