@@ -13,7 +13,7 @@ import {Resources, SampleUsage} from '@greymass/eosio-resources'
 
 import {getException} from './exception'
 import {Buyrambytes, Powerup} from './types'
-import defaultTranslations from './translations.json'
+import defaultTranslations from './translations'
 
 enum ChainFeatures {
     /** eosio.buyram / eosio.buyrambytes https://github.com/EOSIO/eosio.contracts/blob/master/contracts/eosio.system/src/delegate_bandwidth.cpp#L43 */
