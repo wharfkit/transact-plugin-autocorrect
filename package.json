@@ -1,7 +1,7 @@
 {
     "name": "@wharfkit/transact-plugin-autocorrect",
     "description": "A plugin to correct common issues users experience while performing transactions.",
-    "version": "1.0.0-beta1",
+    "version": "1.0.0",
     "homepage": "https://github.com/wharfkit/transact-plugin-autocorrect",
     "license": "BSD-3-Clause",
     "main": "lib/transact-plugin-autocorrect.js",
