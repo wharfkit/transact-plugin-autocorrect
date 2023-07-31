@@ -1,7 +1,7 @@
 {
     "name": "@wharfkit/transact-plugin-autocorrect",
     "description": "A plugin to correct common issues users experience while performing transactions.",
-    "version": "0.3.4",
+    "version": "1.0.0-beta1",
     "homepage": "https://github.com/wharfkit/transact-plugin-autocorrect",
     "license": "BSD-3-Clause",
     "main": "lib/transact-plugin-autocorrect.js",
@@ -16,12 +16,11 @@
         "prepare": "make"
     },
     "dependencies": {
-        "@greymass/eosio-resources": "^0.9.0",
+        "@wharfkit/resources": "^1.0.0",
         "tslib": "^2.1.0"
     },
     "peerDependencies": {
-        "@greymass/eosio": "^0.6.9",
-        "@wharfkit/session": "^0.3.2"
+        "@wharfkit/session": "^1.0.0"
     },
     "devDependencies": {
         "@rollup/plugin-alias": "^3.1.4",
@@ -36,7 +35,7 @@
         "@types/node": "^18.7.18",
         "@typescript-eslint/eslint-plugin": "^5.20.0",
         "@typescript-eslint/parser": "^5.20.0",
-        "@wharfkit/session": "^0.3.2",
+        "@wharfkit/session": "^1.0.0-beta8",
         "@wharfkit/wallet-plugin-privatekey": "^0.3.0",
         "chai": "^4.3.4",
         "eslint": "^8.13.0",
