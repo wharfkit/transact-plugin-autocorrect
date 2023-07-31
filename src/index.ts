@@ -9,7 +9,7 @@ import {
     TransactHookResponse,
     TransactHookTypes,
 } from '@wharfkit/session'
-import {Resources, SampleUsage} from '@greymass/eosio-resources'
+import {Resources, SampleUsage} from '@wharfkit/resources'
 
 import {getException} from './exception'
 import {Buyrambytes, Powerup} from './types'
