@@ -234,7 +234,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         }
 
         // Determine price of resources
-        const price = Asset.fromUnits(ram.price_per(needed) * 10000, config.symbol)
+        const price = Asset.fromUnits(ram.price_per(needed).value * 10000, config.symbol)
 
         // Keep a running total of the price
         if (this.price) {
