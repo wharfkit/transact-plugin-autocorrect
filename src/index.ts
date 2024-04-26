@@ -51,6 +51,12 @@ const chains: Record<string, ChainConfig> = {
         sampleAccount: 'eosmechanics',
         symbol: Asset.Symbol.from('4,EOS'),
     },
+    // WAX
+    '1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4': {
+        features: [ChainFeatures.BuyRAM, ChainFeatures.PowerUp],
+        sampleAccount: 'boost.wax',
+        symbol: Asset.Symbol.from('8,WAX'),
+    },
 }
 
 /** Multiply all resource purchases to provide extra based on inaccurate estimates */
@@ -180,45 +186,54 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         const resolved = await context.resolve(request)
 
         // Call compute_transaction against the resolved transaction to detect any issues.
-        const response = await context.client.v1.chain.compute_transaction(resolved.transaction)
-
-        // Extract any exceptions from the response
-        const exception = getException(response)
-        if (exception) {
-            switch (exception.name) {
-                case 'tx_net_usage_exceeded': {
-                    const {net_usage} = exception.stack[0].data
-                    const needed = net_usage * multiplier
-                    if (config.features.includes(ChainFeatures.PowerUp)) {
-                        return this.powerup(context, resolved, resources, 0, needed)
+        return context.client.v1.chain
+            .compute_transaction(resolved.transaction)
+            .then(() => {
+                return request
+            })
+            .catch((response) => {
+                // Extract any exceptions from the response
+                if (response.error) {
+                    switch (response.error.name) {
+                        case 'tx_net_usage_exceeded': {
+                            const [, net_usage] = response.error.details[0].message.match(
+                                /transaction net usage is too high: (\d+) > 0/
+                            )
+                            const needed = Number(net_usage) * multiplier
+                            if (config.features.includes(ChainFeatures.PowerUp)) {
+                                return this.powerup(context, resolved, resources, 0, needed)
+                            }
+                            break
+                        }
+                        case 'tx_cpu_usage_exceeded': {
+                            const [, cpu_usage] = response.error.details[0].message.match(
+                                /billed CPU time \((\d+) us\) is greater than the maximum billable CPU time for the transaction/
+                            )
+                            const needed = Number(cpu_usage) * multiplier
+                            if (config.features.includes(ChainFeatures.PowerUp)) {
+                                return this.powerup(context, resolved, resources, needed, 0)
+                            }
+                            break
+                        }
+                        case 'ram_usage_exceeded': {
+                            const [, , needs, has] = response.error.details[0].message.match(
+                                /account (\w.+) has insufficient ram; needs (\d+) bytes has (\d+) bytes/
+                            )
+                            const needed = (Number(needs) - Number(has)) * multiplier
+                            if (config.features.includes(ChainFeatures.BuyRAM)) {
+                                return this.buyram(context, resolved, resources, needed)
+                            }
+                            break
+                        }
+                        default: {
+                            // no errors detected
+                            break
+                        }
                     }
-                    break
                 }
-                case 'tx_cpu_usage_exceeded': {
-                    const {billed, billable} = exception.stack[0].data
-                    const needed = (billed - billable) * multiplier
-                    if (config.features.includes(ChainFeatures.PowerUp)) {
-                        return this.powerup(context, resolved, resources, needed, 0)
-                    }
-                    break
-                }
-                case 'ram_usage_exceeded': {
-                    const {available, needs} = exception.stack[0].data
-                    const needed = (needs - available) * multiplier
-                    if (config.features.includes(ChainFeatures.BuyRAM)) {
-                        return this.buyram(context, resolved, resources, needed)
-                    }
-                    break
-                }
-                default: {
-                    // no errors detected
-                    break
-                }
-            }
-        }
-
-        // Return the request
-        return request
+                // Return the request
+                return request
+            })
     }
     async buyram(
         context: TransactContext,
@@ -234,7 +249,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         }
 
         // Determine price of resources
-        const price = Asset.fromUnits(ram.price_per(needed).value * 10000, config.symbol)
+        const price = Asset.from(ram.price_per(needed).value, config.symbol)
 
         // Keep a running total of the price
         if (this.price) {
@@ -287,8 +302,8 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         }
 
         // If powering up, always set a minimum to avoid API speed variance
-        if (cpu < 5000) {
-            cpu = 5000
+        if (cpu < 2500) {
+            cpu = 2500
         }
 
         if (net < 10000) {
@@ -298,7 +313,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         // Determine price of resources
         const price = Asset.from(
             Number(powerup.cpu.price_per(this.sample, cpu)) +
-                Number(powerup.net.price_per(this.sample, net)),
+                Number(powerup.net.price_per(this.sample, net)) * multiplier,
             config.symbol
         )
 

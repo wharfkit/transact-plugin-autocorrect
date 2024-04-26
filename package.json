@@ -16,7 +16,7 @@
         "prepare": "make"
     },
     "dependencies": {
-        "@wharfkit/resources": "^1.1.0",
+        "@wharfkit/resources": "^1.2.2",
         "tslib": "^2.1.0"
     },
     "peerDependencies": {

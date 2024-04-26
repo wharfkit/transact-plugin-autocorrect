@@ -1,10 +1,8 @@
-import {API} from '@wharfkit/session'
+import {APIError} from '@wharfkit/session'
 
-export function getException(
-    response: API.v1.SendTransactionResponse
-): API.v1.SendTransactionResponseException | null {
-    if (response.processed.except) {
-        return response.processed.except
+export function getException(response): APIError | null {
+    if (response.error) {
+        return response.error
     }
     return null
 }
