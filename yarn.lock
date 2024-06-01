@@ -568,10 +568,10 @@
   dependencies:
     tslib "^2.1.0"
 
-"@wharfkit/resources@^1.2.2":
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/@wharfkit/resources/-/resources-1.2.2.tgz#5c58140745d013533739b1ee285cbd1031c3f063"
-  integrity sha512-WOsI5pIklx3rkz1OmUNISyYbG6cwaAOcHShRCeUrpEwWykjW91iEjslFtoW1+ZyQ0aJOUc9v6721jvS7gP3OPg==
+"@wharfkit/resources@^1.2.3":
+  version "1.2.3"
+  resolved "https://registry.yarnpkg.com/@wharfkit/resources/-/resources-1.2.3.tgz#9360ff8a21181042e9d709169546ae3d13c46765"
+  integrity sha512-uOf52gdpxfIWOlo0Z/kdMPMpyVk9Rnb9f6O/FACm/VQ13xykrR4AoZGhUnejft2S7RcqVWLjb9oqpOxhDOywBg==
   dependencies:
     "@wharfkit/antelope" "^1.0.0"
     bn.js "^4.11.9"
