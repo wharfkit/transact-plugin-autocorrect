@@ -1,6 +1,7 @@
 import {
     AbstractTransactPlugin,
     Action,
+    API,
     Asset,
     prependAction,
     ResolvedSigningRequest,
@@ -113,8 +114,11 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                 return {request}
             })
 
+        // Retrieve account data for the current account
+        const account = await context.client.v1.chain.get_account(context.permissionLevel.actor)
+
         // Attempt to correct this transaction
-        const correctedPromise = this.correct(request, context)
+        const correctedPromise = this.correct(request, context, account)
 
         const modified = await Promise.race([checkingPromise, correctedPromise])
 
@@ -162,7 +166,11 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
             })
     }
 
-    async correct(request: SigningRequest, context: TransactContext): Promise<SigningRequest> {
+    async correct(
+        request: SigningRequest,
+        context: TransactContext,
+        account: API.v1.AccountObject
+    ): Promise<SigningRequest> {
         // TODO: Remove this once we are confident it won't create infinite loops against bad APIs
         // Keep track of how many interations have been done
         this.iterations++
@@ -201,7 +209,14 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                             )
                             const needed = Number(net_usage) * multiplier
                             if (config.features.includes(ChainFeatures.PowerUp)) {
-                                return this.powerup(context, resolved, resources, 0, needed)
+                                return this.powerup(
+                                    context,
+                                    resolved,
+                                    account,
+                                    resources,
+                                    0,
+                                    needed
+                                )
                             }
                             break
                         }
@@ -211,7 +226,14 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                             )
                             const needed = Number(cpu_usage) * multiplier
                             if (config.features.includes(ChainFeatures.PowerUp)) {
-                                return this.powerup(context, resolved, resources, needed, 0)
+                                return this.powerup(
+                                    context,
+                                    resolved,
+                                    account,
+                                    resources,
+                                    needed,
+                                    0
+                                )
                             }
                             break
                         }
@@ -221,7 +243,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                             )
                             const needed = (Number(needs) - Number(has)) * multiplier
                             if (config.features.includes(ChainFeatures.BuyRAM)) {
-                                return this.buyram(context, resolved, resources, needed)
+                                return this.buyram(context, resolved, account, resources, needed)
                             }
                             break
                         }
@@ -238,6 +260,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
     async buyram(
         context: TransactContext,
         resolved: ResolvedSigningRequest,
+        account: API.v1.AccountObject,
         resources: Resources,
         needed: number
     ): Promise<SigningRequest> {
@@ -284,12 +307,13 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         const newRequest = prependAction(resolved.request, newAction)
 
         // Attempt to correct the new request
-        return this.correct(newRequest, context)
+        return this.correct(newRequest, context, account)
     }
 
     async powerup(
         context: TransactContext,
         resolved: ResolvedSigningRequest,
+        account: API.v1.AccountObject,
         resources: Resources,
         cpu: number,
         net: number
@@ -350,9 +374,45 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         })
 
         // Create a new request based on this full transaction
-        const newRequest = prependAction(resolved.request, newAction)
+        let modifiedRequest = prependAction(resolved.request, newAction)
+
+        // Determine if the account has enough RAM to powerup
+        const ram_needed = 410 // 405 appears to be the exact amount, but purchase an additional small buffer
+        if (Number(account.ram_quota) - Number(account.ram_usage) < ram_needed) {
+            // Get state of the blockchain and determine RAM price
+            const config = chains[String(context.chain.id)]
+            const ram = await resources.v1.ram.get_state()
+            if (!this.sample) {
+                this.sample = await resources.getSampledUsage()
+            }
+
+            // Create a new buyrambytes action to append
+            const ramAction = Action.from({
+                account: 'eosio',
+                name: 'buyrambytes',
+                authorization: [resolved.signer],
+                data: Buyrambytes.from({
+                    payer: resolved.signer.actor,
+                    receiver: resolved.signer.actor,
+                    bytes: ram_needed,
+                }),
+            })
+
+            // Modify the account object to prevent multiple purchases during recurrsion
+            account.ram_quota.add(ram_needed)
+
+            // Modify the request
+            modifiedRequest = prependAction(modifiedRequest, ramAction)
+
+            // Determine price of resources
+            const ramPrice = Asset.from(ram.price_per(ram_needed).value, config.symbol)
+            this.price.units.add(ramPrice.units)
+
+            // Notify that RAM is also being purchased
+            this.resources.push('RAM')
+        }
 
         // Attempt to correct the new request
-        return this.correct(newRequest, context)
+        return this.correct(modifiedRequest, context, account)
     }
 }
