@@ -241,7 +241,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                             const [, , needs, has] = response.error.details[0].message.match(
                                 /account (\w.+) has insufficient ram; needs (\d+) bytes has (\d+) bytes/
                             )
-                            const needed = (Number(needs) - Number(has)) * multiplier
+                            const needed = (Number(needs) - Number(has)) * multiplier + 2
                             if (config.features.includes(ChainFeatures.BuyRAM)) {
                                 return this.buyram(context, resolved, account, resources, needed)
                             }
