@@ -248,7 +248,8 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                             break
                         }
                         default: {
-                            // no errors detected
+                            // an unknown error was detected
+                            console.log('unknown error', response)
                             break
                         }
                     }
