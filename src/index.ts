@@ -205,7 +205,7 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
                     switch (response.error.name) {
                         case 'tx_net_usage_exceeded': {
                             const [, net_usage] = response.error.details[0].message.match(
-                                /transaction net usage is too high: (\d+) > 0/
+                                /transaction net usage is too high: (\d+) > (\d+)/
                             )
                             const needed = Number(net_usage) * multiplier
                             if (config.features.includes(ChainFeatures.PowerUp)) {
