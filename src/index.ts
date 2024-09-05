@@ -43,13 +43,13 @@ const chains: Record<string, ChainConfig> = {
     // EOS
     aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906: {
         features: [ChainFeatures.BuyRAM, ChainFeatures.PowerUp],
-        sampleAccount: 'teamgreymass',
+        sampleAccount: 'eosio.reserv',
         symbol: Asset.Symbol.from('4,EOS'),
     },
     // Jungle 4
     '73e4385a2708e6d7048834fbc1079f2fabb17b3c125b146af438971e90716c4d': {
         features: [ChainFeatures.BuyRAM, ChainFeatures.PowerUp],
-        sampleAccount: 'eosmechanics',
+        sampleAccount: 'eosio.reserv',
         symbol: Asset.Symbol.from('4,EOS'),
     },
     // WAX
