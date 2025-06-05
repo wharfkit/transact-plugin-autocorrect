@@ -196,12 +196,62 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         // Call compute_transaction against the resolved transaction to detect any issues.
         return context.client.v1.chain
             .compute_transaction(resolved.transaction)
-            .then(() => {
+            .then((response) => {
+                // Extract any exceptions from the response
+                const exception = getException(response)
+                // Handling of exception when no error is thrown
+                if (exception && exception.stack && typeof exception.stack[0] === 'object') {
+                    switch (exception.name) {
+                        case 'tx_net_usage_exceeded': {
+                            const {net_usage} = exception.stack[0].data
+                            const needed = net_usage * multiplier
+                            if (config.features.includes(ChainFeatures.PowerUp)) {
+                                return this.powerup(
+                                    context,
+                                    resolved,
+                                    account,
+                                    resources,
+                                    0,
+                                    needed
+                                )
+                            }
+                            break
+                        }
+                        case 'tx_cpu_usage_exceeded': {
+                            const {billed, billable} = exception.stack[0].data
+                            const needed = (billed - billable) * multiplier
+                            if (config.features.includes(ChainFeatures.PowerUp)) {
+                                return this.powerup(
+                                    context,
+                                    resolved,
+                                    account,
+                                    resources,
+                                    needed,
+                                    0
+                                )
+                            }
+                            break
+                        }
+                        case 'ram_usage_exceeded': {
+                            const {available, needs} = exception.stack[0].data
+                            const needed = (needs - available) * multiplier
+                            if (config.features.includes(ChainFeatures.BuyRAM)) {
+                                return this.buyram(context, resolved, account, resources, needed)
+                            }
+                            break
+                        }
+                        default: {
+                            // no errors detected
+                            break
+                        }
+                    }
+                }
                 return request
             })
             .catch((response) => {
                 // Extract any exceptions from the response
                 if (response.error) {
+                    // Handling of exception when it is thrown
                     switch (response.error.name) {
                         case 'tx_net_usage_exceeded': {
                             const [, net_usage] = response.error.details[0].message.match(
