@@ -16,11 +16,11 @@
         "prepare": "make"
     },
     "dependencies": {
-        "@wharfkit/resources": "^1.2.3",
+        "@wharfkit/resources": "^1.5.0",
         "tslib": "^2.1.0"
     },
     "peerDependencies": {
-        "@wharfkit/session": "^1.1.0"
+        "@wharfkit/session": "^1.6.0"
     },
     "devDependencies": {
         "@rollup/plugin-alias": "^3.1.4",
@@ -35,7 +35,7 @@
         "@types/node": "^18.7.18",
         "@typescript-eslint/eslint-plugin": "^5.20.0",
         "@typescript-eslint/parser": "^5.20.0",
-        "@wharfkit/session": "^1.1.0-rcfinal",
+        "@wharfkit/session": "^1.6.1",
         "@wharfkit/wallet-plugin-privatekey": "^1.1.0",
         "chai": "^4.3.4",
         "eslint": "^8.13.0",
