@@ -386,9 +386,24 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         }
 
         // Determine price of resources
+        const minPriceValue = Number(Asset.fromUnits(1, config.symbol).value)
+
+        let cpuPrice = 0
+        try {
+            cpuPrice = Number(powerup.cpu.price_per(this.sample, cpu))
+        } catch {
+            cpuPrice = cpu > 0 ? minPriceValue : 0
+        }
+
+        let netPrice = 0
+        try {
+            netPrice = Number(powerup.net.price_per(this.sample, net))
+        } catch {
+            netPrice = net > 0 ? minPriceValue : 0
+        }
+
         const price = Asset.from(
-            Number(powerup.cpu.price_per(this.sample, cpu)) +
-                Number(powerup.net.price_per(this.sample, net)) * multiplier,
+            cpuPrice + netPrice * multiplier,
             config.symbol
         )
 
@@ -464,6 +479,6 @@ export class TransactPluginAutoCorrect extends AbstractTransactPlugin {
         }
 
         // Attempt to correct the new request
-        return this.correct(modifiedRequest, context, account)
+        return await this.correct(modifiedRequest, context, account)
     }
 }
